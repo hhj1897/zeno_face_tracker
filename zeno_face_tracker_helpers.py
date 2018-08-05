@@ -1,14 +1,16 @@
 import os
+import cv2
 import numpy as np
 import xml.etree.cElementTree as ET
 
 
-def save_pts(pts_path, pts):
+def save_pts(pts_path, pts, number_of_decimals=3):
     with open(pts_path, 'w') as pts_file:
         pts_file.write('version: 1\n')
         pts_file.write('n_points: %d\n{\n' % pts.shape[0])
+        line_template = '%%.%df %%.%df\n' % (number_of_decimals, number_of_decimals)
         for idx in range(pts.shape[0]):
-            pts_file.write('%.3f %.3f\n' % (pts[idx, 0], pts[idx, 1]))
+            pts_file.write(line_template % (pts[idx, 0], pts[idx, 1]))
         pts_file.write('}\n')
 
 
@@ -58,3 +60,43 @@ def save_annotation_job(job_path, items, number_of_landmarks):
                     target = ET.SubElement(connections, 'Target')
                     target.set('id', '%d' % (pt_idx + 1))
     ET.ElementTree(root).write(job_path, encoding='UTF-8', xml_declaration=True)
+
+
+def load_annotation_job(job_path):
+    job_folder = os.path.realpath(os.path.dirname(job_path))
+    root = ET.parse(job_path).getroot()
+    number_of_landmarks = int(root.attrib['numberOfFeatures'])
+    if root.tag[0] == '{':
+        namespace = root.tag[1:].split('}')[0]
+    else:
+        namespace = None
+
+    def form_xml_tag(tag):
+        if namespace is None or namespace == '':
+            return tag
+        else:
+            return '{%s}%s' % (namespace, tag)
+
+    items = []
+    for sample in root.findall('%s/%s' % (form_xml_tag('Samples'), form_xml_tag('Sample'))):
+        item = {}
+        if os.path.isabs(sample.attrib['fileName']):
+            item['image_path'] = sample.attrib['fileName']
+        else:
+            item['image_path'] = os.path.realpath(os.path.join(job_folder, sample.attrib['fileName']))
+        item['facial_landmarks'] = -np.ones((number_of_landmarks, 2), dtype=float)
+        for feature in sample.findall('%s/%s' % (form_xml_tag('Features'), form_xml_tag('Feature'))):
+            index = int(feature.attrib['id'])
+            if 0 <= index < number_of_landmarks:
+                item['facial_landmarks'][index, 0] = float(feature.attrib['x'])
+                item['facial_landmarks'][index, 1] = float(feature.attrib['y'])
+        items.append(item)
+
+    return items
+
+
+def align_landmarks(landmarks, mean_shape, anchors):
+    anchors = list(set([x for x in anchors if 0 <= x < min(landmarks.shape[0], mean_shape.shape[0])]))
+    transform = cv2.estimateRigidTransform(landmarks[anchors], mean_shape[anchors], False)
+    return (np.matmul(landmarks, transform[:, 0:2].T) +
+            np.tile(transform[:, 2].T, (landmarks.shape[0], 1))), transform

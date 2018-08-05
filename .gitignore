@@ -1,5 +1,8 @@
 .idea
 .ipynb_checkpoints
-dataset/cam*
-dataset/batch*
 *.pyc
+*.png
+*.pts
+*.fad
+*.bak
+*.pkl
