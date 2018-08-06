@@ -62,10 +62,11 @@ def save_annotation_job(job_path, items, number_of_landmarks):
     ET.ElementTree(root).write(job_path, encoding='UTF-8', xml_declaration=True)
 
 
-def load_annotation_job(job_path):
+def load_annotation_job(job_path, number_of_landmarks=None):
     job_folder = os.path.realpath(os.path.dirname(job_path))
     root = ET.parse(job_path).getroot()
-    number_of_landmarks = int(root.attrib['numberOfFeatures'])
+    if number_of_landmarks is None:
+        number_of_landmarks = int(root.attrib['numberOfFeatures'])
     if root.tag[0] == '{':
         namespace = root.tag[1:].split('}')[0]
     else:
@@ -80,10 +81,14 @@ def load_annotation_job(job_path):
     items = []
     for sample in root.findall('%s/%s' % (form_xml_tag('Samples'), form_xml_tag('Sample'))):
         item = {}
-        if os.path.isabs(sample.attrib['fileName']):
-            item['image_path'] = sample.attrib['fileName']
+        if os.name == 'nt':
+            image_file_path = sample.attrib['fileName'].replace('/', '\\')
         else:
-            item['image_path'] = os.path.realpath(os.path.join(job_folder, sample.attrib['fileName']))
+            image_file_path = sample.attrib['fileName'].replace('\\', '/')
+        if os.path.isabs(image_file_path):
+            item['image_path'] = image_file_path
+        else:
+            item['image_path'] = os.path.realpath(os.path.join(job_folder, image_file_path))
         item['facial_landmarks'] = -np.ones((number_of_landmarks, 2), dtype=float)
         for feature in sample.findall('%s/%s' % (form_xml_tag('Features'), form_xml_tag('Feature'))):
             index = int(feature.attrib['id'])
