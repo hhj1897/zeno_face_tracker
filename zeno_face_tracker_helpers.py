@@ -41,6 +41,7 @@ def save_annotation_job(job_path, items, number_of_landmarks):
             feature.set('id', '%d' % pt_idx)
             connections = ET.SubElement(feature, 'Connections')
             if item[1].shape[0] == 68:
+                # The 68 facial landmark markup
                 if pt_idx == 30:
                     target = ET.SubElement(connections, 'Target')
                     target.set('id', '33')
@@ -57,6 +58,14 @@ def save_annotation_job(job_path, items, number_of_landmarks):
                     target = ET.SubElement(connections, 'Target')
                     target.set('id', '60')
                 elif pt_idx != 16 and pt_idx != 21 and pt_idx != 26 and pt_idx != 35:
+                    target = ET.SubElement(connections, 'Target')
+                    target.set('id', '%d' % (pt_idx + 1))
+            elif item[1].shape[0] == 4:
+                # Assuming this is a bounding box
+                if pt_idx == 3:
+                    target = ET.SubElement(connections, 'Target')
+                    target.set('id', '0')
+                else:
                     target = ET.SubElement(connections, 'Target')
                     target.set('id', '%d' % (pt_idx + 1))
     ET.ElementTree(root).write(job_path, encoding='UTF-8', xml_declaration=True)
