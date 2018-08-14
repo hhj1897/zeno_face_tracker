@@ -1,5 +1,6 @@
 import os
 import cv2
+import dlib
 import numpy as np
 import xml.etree.cElementTree as ET
 
@@ -114,3 +115,30 @@ def align_landmarks(landmarks, mean_shape, anchors):
     transform = cv2.estimateRigidTransform(landmarks[anchors], mean_shape[anchors], False)
     return (np.matmul(landmarks, transform[:, 0:2].T) +
             np.tile(transform[:, 2].T, (landmarks.shape[0], 1))), transform
+
+
+def run_multiple_detectors(detectors, image, overlap_threshold, upsample_num_times=0, adjust_threshold=0.0):
+    face_boxes = dlib.fhog_object_detector.run_multiple(detectors, image, upsample_num_times, adjust_threshold)
+    if len(face_boxes[1]) > 0:
+        sorted_indices = sorted(range(len(face_boxes[1])), key=lambda k: face_boxes[1][k], reverse=True)
+        filtered_face_boxes = [face_boxes[0][sorted_indices[0]]]
+        filtered_confidences = [face_boxes[1][sorted_indices[0]]]
+        filtered_detector_indices = [face_boxes[2][sorted_indices[0]]]
+        filtered_face_box_sizes = [max(1e-6, float(filtered_face_boxes[0].area()))]
+        for idx in sorted_indices[1:]:
+            not_overlapping = True
+            current_face_box_size = max(1e-6, float(face_boxes[0][idx].area()))
+            for idx2, consolidated_face_box in enumerate(filtered_face_boxes):
+                intersection_area = float(consolidated_face_box.intersect(face_boxes[0][idx]).area())
+                overlap = intersection_area / min(filtered_face_box_sizes[idx2], current_face_box_size)
+                if overlap > overlap_threshold:
+                    not_overlapping = False
+                    break
+            if not_overlapping:
+                filtered_face_boxes.append(face_boxes[0][idx])
+                filtered_confidences.append(face_boxes[1][idx])
+                filtered_detector_indices.append(face_boxes[2][idx])
+                filtered_face_box_sizes.append(current_face_box_size)
+        return filtered_face_boxes, filtered_confidences, filtered_detector_indices
+    else:
+        return [], [], []
