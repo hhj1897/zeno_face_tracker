@@ -8,3 +8,5 @@
 *.pkl
 *.model
 *.zip
+dataset2/*
+dataset3/*

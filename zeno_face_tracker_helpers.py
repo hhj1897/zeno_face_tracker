@@ -142,3 +142,27 @@ def run_multiple_detectors(detectors, image, overlap_threshold, upsample_num_tim
         return filtered_face_boxes, filtered_confidences, filtered_detector_indices
     else:
         return [], [], []
+
+
+def compute_rigid_alignment_parameters(source, destination):
+    assert source.shape == destination.shape and source.shape[1] == 2
+    a = np.zeros((4, 4), np.float)
+    b = np.zeros((4, 1), np.float)
+    for idx in range(source.shape[0]):
+        a[0, 0] += np.dot(source[idx], source[idx])
+        a[0, 2] += source[idx, 0]
+        a[0, 3] += source[idx, 1]
+        b[0] += np.dot(source[idx], destination[idx])
+        b[1] += np.dot(source[idx], [destination[idx, 1], -destination[idx, 0]])
+        b[2] += destination[idx, 0]
+        b[3] += destination[idx, 1]
+    a[1, 1] = a[0, 0]
+    a[3, 0] = a[0, 3]
+    a[1, 2] = a[2, 1] = -a[0, 3]
+    a[1, 3] = a[3, 1] = a[2, 0] = a[0, 2]
+    a[2, 2] = a[3, 3] = source.shape[0]
+    return tuple(np.dot(np.linalg.pinv(a), b).T[0].tolist())
+
+
+def apply_rigid_alignment_parameters(source, scos, ssin, transx, transy):
+    return np.dot(source, [[scos, ssin], [-ssin, scos]]) + [transx, transy]
